@@ -1,0 +1,595 @@
+---
+title: "Hyphae Labs Automated Report Generator"
+author: "IMB"
+date: "2022-11-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+################################################################################
+# Load Necessary Libraries
+################################################################################
+library(reticulate)
+library(plotly)
+library(dplyr)
+library(googlesheets4)
+use_python('C:/Users/theda/AppData/Local/Programs/Python/Python310/python.exe')
+################################################################################
+
+################################################################################
+# Function to Generate and Save and Archive of an input Data Frame
+################################################################################
+generate_archive = function(dataFrame) {
+  # Create necessary paths and file names based on current date/time
+  rawPath = 'H:\\My Drive\\'
+  archivePath = 'H:\\My Drive\\HL Data Files\\ARCHIVE\\'
+  currentTime = Sys.time()
+  currentTime = str_replace_all(currentTime,':',' ')
+  archiveName = paste(currentTime,'.gsheet',sep='')
+  
+  # Generate new spreadsheet in the base Drive Folder
+  (newSpreadSheet = gs4_create(currentTime, sheets = dataFrame))
+  
+  # Wait until file has been generated
+  drivePath = paste(rawPath,archiveName,sep='')
+  while (!file.exists(drivePath)) {
+    Sys.sleep(1)}
+
+  # Move File to Archive Folder
+  file.move(drivePath, archivePath)
+  print(paste('ARCHIVE GENERATED:',archiveName))}
+################################################################################
+
+################################################################################
+# Function to check Data for Replicate, Generate Mean, and Return Compiled Row
+################################################################################
+replicate_data_prep = function(sample_id,procDF) {
+  lastChar = str_sub(sample_id,-1,-1)
+  if (grepl('[A-Z]',lastChar)) {
+    baseID = substr(sample_id,1,nchar(sample_id)-1)
+    tempData = procDF[substr(procDF$Sample_ID,1,nchar(procDF$Sample_ID)-1) == baseID,]
+    meanData = tempData[rep(1,1),]
+    compoundList = generate_compound_list()
+    meanData$Sample_ID = baseID
+    meanData$Processed_Weight_g = mean(tempData$Processed_Weight_g)
+    meanData$'Norbaeocystin_ug/mL' = mean(tempData$'Norbaeocystin_ug/mL')
+    meanData$'Baeocystin_ug/mL' = mean(tempData$'Baeocystin_ug/mL')
+    meanData$'Psilocybin_ug/mL' = mean(tempData$'Psilocybin_ug/mL')
+    meanData$'Aeruginascin_ug/mL' = mean(tempData$'Aeruginascin_ug/mL')
+    meanData$'Adenosine_ug/mL' = mean(tempData$'Adenosine_ug/mL')
+    meanData$'Five_Methoxy_DMT_ug/mL' = mean(tempData$'Five_Methoxy_DMT_ug/mL')
+    meanData$'Cordycepin_ug/mL' = mean(tempData$'Cordycepin_ug/mL')
+    meanData$'Psilocin_ug/mL' = mean(tempData$'Psilocin_ug/mL')
+    meanData$'Four_Hydroxy_TMT_ug/mL' = mean(tempData$'Four_Hydroxy_TMT_ug/mL')
+    meanData$'Tryptamine_ug/mL' = mean(tempData$'Tryptamine_ug/mL')
+    meanData$'Bufotenin_ug/mL' = mean(tempData$'Bufotenin_ug/mL')
+    meanData$'NN_DMT_ug/mL' = mean(tempData$'NN_DMT_ug/mL')
+    
+    meanData$'Norbaeocystin_mg/g' = mean(tempData$'Norbaeocystin_mg/g')
+    meanData$'Baeocystin_mg/g' = mean(tempData$'Baeocystin_mg/g')
+    meanData$'Psilocybin_mg/g' = mean(tempData$'Psilocybin_mg/g')
+    meanData$'Aeruginascin_mg/g' = mean(tempData$'Aeruginascin_mg/g')
+    meanData$'Adenosine_mg/g' = mean(tempData$'Adenosine_mg/g')
+    meanData$'Five_Methoxy_DMT_mg/g' = mean(tempData$'Five_Methoxy_DMT_mg/g')
+    meanData$'Cordycepin_mg/g' = mean(tempData$'Cordycepin_mg/g')
+    meanData$'Psilocin_mg/g' = mean(tempData$'Psilocin_mg/g')
+    meanData$'Four_Hydroxy_TMT_mg/g' = mean(tempData$'Four_Hydroxy_TMT_mg/g')
+    meanData$'Tryptamine_mg/g' = mean(tempData$'Tryptamine_mg/g')
+    meanData$'Bufotenin_mg/g' = mean(tempData$'Bufotenin_mg/g')
+    meanData$'NN_DMT_mg/g' = mean(tempData$'NN_DMT_mg/g')
+    sampleData = meanData
+  } else {
+    print('SAMPLE HAS NO REPLICATES')
+    }
+  return(sampleData)}
+################################################################################
+
+################################################################################
+# Function to Load the Google Sheets Database
+################################################################################
+load_google_database = function() {
+  # Load in the Processing Data Batch Google Sheet 
+  preProcDF = googledrive::drive_get('Hyphae Labs Merge CURRENT') %>% 
+  read_sheet()
+  generate_archive(preProcDF)
+  procDF = preProcDF
+  return(procDF)}
+################################################################################
+
+procDF=load_google_database()
+
+```
+
+```{r setup, include=FALSE}
+################################################################################
+# Function to Generate All Graphics from Dataframe Row
+################################################################################
+gen_graphics_from_row = fucntion() {
+  # Import Data From Database
+  # sample_name = '{PE HL}'
+  # sample_id = '{CUP000}'
+  # sample_cult_prod = '{HYPHAE LABS}'
+  # sample_species = '<i>{Ps. cubensis}'
+  # sample_cultivar = '{Penis Envy}'
+  # sample_gen_date = '9/25/2022'
+  # report_type = 'Default'
+  # sample_cult_desc = '{Cultivated on millet, transferred to coco coir with vermiculite and gypsum. A long-night light cycle was used during pinning/fruiting.}'
+  # sample_lab_desc = '{Light tan to brown small caps with bluing on margins attached to long thin, white stipes with occasional bruising; some veils open some not.}'
+  # sample_homog_desc = '{Homogenizes as a fluffy light tan powder with fibrous fine and small particle sizes and a slightly sweet musty scent.}'
+  # known_values= c(0.05, 10.21, 3.25, 0.00, 0.00)
+  # other_values= c(0.81, 0.00, 1.05, 1.21, 0.25, 0.40, 0.00, 0.22, 0.00)
+  sample_name = '{PE HL}'
+  sample_id = '{CUP000}'
+  sample_cult_prod = '{HYPHAE LABS}'
+  sample_species = '<i>{Ps. cubensis}'
+  sample_cultivar = '{Penis Envy}'
+  sample_gen_date = '9/25/2022'
+  report_type = 'Default'
+  sample_cult_desc = '{Cultivated on millet, transferred to coco coir with vermiculite and gypsum. A long-night light cycle was used during pinning/fruiting.}'
+  sample_lab_desc = '{Light tan to brown small caps with bluing on margins attached to long thin, white stipes with occasional bruising; some veils open some not.}'
+  sample_homog_desc = '{Homogenizes as a fluffy light tan powder with fibrous fine and small particle sizes and a slightly sweet musty scent.}'
+  known_values= c(0.05, 10.21, 3.25, 0.00, 0.00)
+  other_values= c(0.81, 0.00, 1.05, 1.21, 0.25, 0.40, 0.00, 0.22, 0.00)
+
+  # Generate Immutable Properties 
+  files_to_copy = c()
+  known_names = c('N,N-DMT', 'Psilocybin', 'Psilocin', 'Bufotenin', '5-MEO-DMT')
+  known_colors = c('#BA55D3', '#6A5ACD', '#9370DB', '#9932CC', '#8B008B')
+  known_font = c('white','white','white','white','white')
+  known_sum = round(sum(known_values),1)
+  other_names = c('Adenosine', 'Cordycepin', 'Tryptamine', 'Baocystin', 'Norpsilocin', 'Norbaeocystin', '4-HT (Pending Validation)', 'Aeruginascin', '4-HTMT')
+  other_colors = c('#FF8C00', '#FFD700', '#D2B48C', '#2F4F4F', '#008080', '#4682B4', '#6495ED', '#0000FF', '#00008B')
+  other_font = c('black','black','black','white','white','white','white','white','white')
+  other_sum = round(sum(other_values),1)}
+
+################################################################################
+
+################################################################################
+# Create Sample Data Frames
+################################################################################
+known_data <- data.frame(Compound_Name = known_names,
+                         mg_g_value = known_values,
+                         Legend_Color = known_colors,
+                         Legend_Font_Color = known_font)
+known_data = known_data %>% mutate_if(is.numeric, round, digits = 1)
+other_data <- data.frame(Compound_Name = other_names,
+                         mg_g_value = other_values,
+                         Legend_Color = other_colors,
+                         Legend_Font_Color = other_font)
+
+other_data = other_data %>% mutate(across(where(is.numeric), ~ round(., 1)))
+final_data <- rbind(known_data,other_data)
+################################################################################
+
+################################################################################
+# Function to save SVG of Ploty Graphic using JavaScript & Firefox
+################################################################################
+save_plotly_svg <- function(plot, file_name) {
+  gc()
+  export(p = plot, file = file_name,
+         selenium = RSelenium::rsDriver(browser = "firefox"))
+  gc()}
+################################################################################
+
+################################################################################
+# Generate Donut Chart
+################################################################################
+donut_plot = plot_ly(height = 565, width = 500) %>%
+  add_pie(labels = known_data$Compound_Name, values = known_data$mg_g_value,
+          textinfo = 'label+value',
+          text = '',
+          insidetextfont = list(color = '#FFFFFF'),
+          type = 'pie', hole = 0.65, sort = F,
+          marker = list(colors = known_data$Legend_Color,
+                        line = list(width = 0.25,
+                                    text = known_data$mg_g_value)),
+          textfont = list(size = 18),
+          textposition ='inside',
+          domain = list(x = c(0.15, 0.85),
+                        y = c(0.15, 0.85))) %>%
+  add_pie(labels = other_data$Compound_Name, values = other_data$mg_g_value,
+          textinfo = 'label+value',
+          text = '',
+          type = 'pie', hole = 0.725, sort = F,
+          marker = list(colors = other_data$Legend_Color,
+                        line = list(width = 0.25,
+                                    text=other_data$mg_g_value)),
+          textfont = list(size = 18),
+          textposition ='inside')
+donut_plot <- layout(donut_plot, title=paste(sample_id, sample_name,'\n CHEMICAL PROFILE', sep = ' '), font=list(size=18))
+donut_plot<- layout(donut_plot, annotations=list(x = 0.5, y = 0.49, text = 'PSYCHOACTIVE COMPOUNDS TOTAL',
+                                                 "showarrow" = F, font = list(size = 11)))
+donut_plot<- layout(donut_plot, annotations=list(x = 0.5, y = 0.56, text = paste(known_sum,'mg/g',sep=''),
+                                                 "showarrow" = F, font = list(size = 37)))
+donut_plot<- layout(donut_plot, annotations=list(x = 0.5, y = 0.37, text = 'OTHER COMPOUNDS TOTAL',
+                                                 "showarrow" = F, font = list(size = 10)))
+donut_plot<- layout(donut_plot, annotations=list(x = 0.5, y = 0.42, text = paste(other_sum,'mg/g',sep=''),
+                                                 "showarrow" = F, font = list(size = 30, color='darkgrey')))
+donut_plot<- layout(donut_plot,shapes = list(
+  list(type = 'line',
+       line = list(color='black'), 
+       x0=0.3, y0=0.46,
+       x1=0.7, y1=0.46)))
+donut_plot<- layout(donut_plot,
+                    autosize = F,
+                    margin = list(l = 0, r = 5, b = 0, t = 75, pad = 4),showlegend = FALSE)
+donut_plot
+donut_plot_name = paste(sample_id, 'donut_plot.svg', sep = '-')
+save_plotly_svg(donut_plot, donut_plot_name)
+files_to_copy = append(files_to_copy, donut_plot_name)
+################################################################################
+
+################################################################################
+# Generate Legend Table
+################################################################################
+legend_df <- final_data[final_data$mg_g_value !=0,]
+legend_df <- legend_df[order(legend_df$mg_g_value, decreasing=TRUE),]
+legend_table <- plot_ly(
+  height = 565,
+  width = 493,
+  type = 'table',
+  columnwidth = c(3,2),
+  header = list(
+    values = c('<b>Compound Name<b>','<b>mg/g Value<b>'),
+    align = 'center',
+    fill = list(color = 'black'),
+    font = list(family = "Arial", size = 20, color = "white")),
+  cells = list(
+    values = rbind(legend_df$Compound_Name,legend_df$mg_g_value),
+    align = c('center', rep('center', ncol(legend_df))),
+    line = list(color = "black", width = 1),
+    fill = list(color = list(legend_df$Legend_Color,'white')),
+    font = list(family = "Arial", size = 24, color = list(legend_df$Legend_Font_Color,'black')),
+    height = 50))
+legend_table<- layout(legend_table,
+                      autosize = F,
+                      margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                      showlegend = FALSE)
+legend_table
+legend_table_name = paste(sample_id, 'legend_table.svg', sep = '-')
+save_plotly_svg(legend_table, legend_table_name)
+files_to_copy = append(files_to_copy, legend_table_name)
+################################################################################
+
+################################################################################
+# Generate Dose Table
+################################################################################
+dose_fruit_g = c(0.1,0.2,0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,5.0)
+dose_active_mg = c()
+dose_category = c()
+dose_color = c()
+dose_font_color = c()
+dose_column = c()
+for (fruit_g in dose_fruit_g) {
+  dose_mg = known_sum*fruit_g
+  dose_active_mg = append(dose_active_mg, dose_mg)
+  if (dose_mg <= 1.5){
+    use_category = '<b>Explore<b>'
+    use_color = '#ADFF2F'
+    font_color = 'black'
+    column_width = 75}
+  else if (dose_mg <= 6.0){
+    use_category = '<b>Micro<b>'
+    use_color = '#00FF00'
+    font_color = 'black'
+    column_width = 75}
+  else if (dose_mg <= 25.0){
+    use_category = '<b>Rec/Ou<b>t'
+    use_color = '#00ffff'
+    font_color = 'black'
+    column_width = 75}
+  else if (dose_mg <= 40.0){
+    use_category = '<b>Therapy<b>'
+    use_color = '#0000ff'
+    font_color = 'white'
+    column_width = 75}
+  else if (dose_mg <= 50.0){
+    use_category = '<b>Spirit<b>'
+    use_color = '#9932CC'
+    font_color = 'white'
+    column_width = 75}
+  else {
+    use_category = '<b>Deep<b>'
+    use_color = '#ff00ff'
+    font_color = 'white'
+    column_width = 75}
+  dose_category = append(dose_category, use_category)
+  dose_color = append(dose_color,use_color)
+  dose_font_color = append(dose_font_color,font_color)
+  dose_column = append(dose_column,column_width)}
+dose_fruit_g = round(dose_fruit_g,1)
+dose_active_mg = round(dose_active_mg,1)
+dose_fruit_g = c('Fruit g Dose',dose_fruit_g)
+dose_active_mg = c('<b>Expected Psychoactive Tryptamines mg<b>',dose_active_mg)
+dose_category = c('<b>Recommended Use<b>',dose_category)
+dose_color = c('black',dose_color)
+dose_font_color = c('white',dose_font_color)
+dose_column = c(150,dose_column)
+dose_table <- plot_ly(
+  height = 210,
+  width = 1325,
+  type = 'table',
+  columnwidth = dose_column,
+  header = list(
+    values = dose_fruit_g,
+    align = c('right','center'),
+    fill = list(color = c('black','white')),
+    line = list(width = 1, color = 'black'),
+    font = list(family = "Arial", size = 30, color = c('white','black')),
+    height = 40),
+  cells = list(
+    values = cbind(dose_active_mg,dose_category),
+    align = c('right','center'),
+    line = list(width = 0, color = 'black'),
+    fill = list(color = dose_color),
+    font = list(family = "Arial", size = c(15,25), color = dose_font_color, type='bold'),
+    height = 50))
+dose_table <- layout(dose_table,
+                     title=paste(sample_id, sample_name,'\nRECOMMENDED DOSAGE CHART',sep = ' '),
+                     font=list(size=18))
+dose_table <- layout(dose_table,
+                     autosize = F,
+                     margin = list(l = 0, r = 0, b = 0, t = 75, pad = 4),
+                     showlegend = FALSE)
+dose_table
+dose_table_name = paste(sample_id, 'dose_table.svg', sep = '-')
+save_plotly_svg(dose_table, dose_table_name)
+files_to_copy = append(files_to_copy, dose_table_name)
+################################################################################
+
+################################################################################
+# Generate Sample Table
+################################################################################
+sample_table_name = paste(sample_id, 'sample_table.svg', sep = '-')
+sample_table <- plot_ly(
+  height = 360,
+  width = 1325,
+  type = 'table',
+  columnwidth = c(451,1000),
+  header = list(
+    values = c('ITEM ID & NAME:',paste(sample_id,sample_name,sep=' ')),
+    align = c('right','left'),
+    fill = list(color = 'black'),
+    line = list(width = 1, color = 'black'),
+    font = list(family = "Arial", size = c(35,40), color = 'white'),
+    height = 50),
+  cells = list(
+    values = cbind(c('CULTIVATOR/PRODUCER:','{CULT/PROD}'),c('SPECIES:','{SPECIES}'),
+                   c('CULTIVAR:','{CULTIVAR}'),c('GENERATION DATE:','{GENDATE}')),
+    align = c('right','left'),
+    line = list(width = 1, color = 'black'),
+    fill = list(color = c('lightgrey','white')),
+    font = list(family = "Arial", size = c(30,40), color = 'black', type='bold'),
+    height = 75))
+sample_table <- layout(sample_table,
+                       autosize = F,
+                       margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                       showlegend = FALSE)
+sample_table 
+save_plotly_svg(sample_table, sample_table_name)
+files_to_copy = append(files_to_copy, sample_table_name)
+################################################################################
+
+################################################################################
+# Generate Top Half of Description Table
+################################################################################
+description_table_top_name = paste(sample_id, 'description_table_top.svg', sep = '-')
+description_table_top <- plot_ly(
+  height = 80,
+  width = 1325,
+  type = 'table',
+  columnwidth = c(451,1000),
+  header = list(
+    values = c('DESCRIPTION:', sample_cult_desc),
+    align = c('right','left'),
+    fill = list(color = c('lightgrey','white')),
+    line = list(width = 1, color = 'black'),
+    font = list(family = "Arial", size = c(30,25), color = 'black'),
+    height = 75))
+description_table_top <- layout(description_table_top,
+                                autosize = F,
+                                margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                                showlegend = FALSE)
+description_table_top
+save_plotly_svg(description_table_top, description_table_top_name)
+files_to_copy = append(files_to_copy, description_table_top_name)
+################################################################################
+
+################################################################################
+# Generate Bottom Half of Description Table
+################################################################################
+description_table_bot_name = paste(sample_id, 'description_table_bot.svg', sep = '-')
+description_table_bot <- plot_ly(
+  height = 425,
+  width = 1325,
+  type = 'table',
+  columnwidth = c(451,273,451,273),
+  header = list(
+    values = c('', sample_lab_desc,'',sample_homog_desc),
+    align = 'left',
+    fill = list(color = 'white'),
+    line = list(width = 1, color = 'black'),
+    font = list(family = "Arial", size = 25, color = 'black'),
+    height = 400))
+description_table_bot <- layout(description_table_bot,
+                                autosize = F,
+                                margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                                showlegend = FALSE)
+description_table_bot
+save_plotly_svg(description_table_bot, description_table_bot_name)
+files_to_copy = append(files_to_copy, description_table_bot_name)
+################################################################################
+
+################################################################################
+# Move Generated Images to their appropriate Google Drive folder
+################################################################################
+origin_dir <- c("C:/Users/theda/Downloads")
+workspace_dir = "H:/My Drive/HL Data Files/AUTOMATION WORKSPACE/"
+sample_dir <- c(paste(workspace_dir,report_type,' - ',sample_id,' - ',sample_name,sep=''))
+
+if (file.exists(sample_dir)){
+  # specifying the working directory
+  print(paste(sample_dir,'FOLDER EXISTS!',sep=' '))
+} else {
+  
+  # create a new sub directory inside
+  # the main path
+  dir.create(file.path(sample_dir))
+  print(paste(sample_dir,'FOLDER EXISTS!',sep=' '))
+}
+
+for (i in 1:length(files_to_copy)) {
+  files_to_copy[i] = paste(origin_dir,files_to_copy[i], sep='/')
+}
+
+file.copy(from=files_to_copy, to=sample_dir, 
+          overwrite = TRUE, recursive = FALSE, 
+          copy.mode = TRUE)
+
+for (i in 1:length(files_to_copy)) {
+  file.remove(files_to_copy[i])}
+################################################################################
+```
+
+
+
+
+
+```{python}
+###############################################################################
+# Load Necessary Libraries to import images and organize PDF Reports
+###############################################################################
+import os
+from fpdf import FPDF
+import cairosvg
+import pandas as pd
+###############################################################################
+
+###############################################################################
+# Function to add PNG to a PDF
+###############################################################################
+def add_png_to_pdf(image_name, x_pos, y_pos, image_w, image_h):
+    if os.path.exists(image_name):   
+        pdf.image(image_name, x_pos, y_pos, image_w, image_h)
+        
+    else:
+        print("File not found:", image_name)
+    print(f"{image_name} Added")
+###############################################################################
+
+###############################################################################
+# Function to add SVG to a PDF by converting with CairoSVG
+###############################################################################
+def cairo_add_svg_to_pdf(sample_id,graphic_type,input_w,input_h,pdf_x,pdf_y):
+    input_path = f'{sample_id}-{graphic_type}.svg'
+    input_png = f'{sample_id}-{graphic_type}.png'
+    cairosvg.svg2png(url=input_path, write_to=input_png)
+    add_png_to_pdf(input_png, pdf_x, pdf_y, input_w, input_h)
+###############################################################################
+
+###############################################################################
+# Function to add SVG to a PDF by converting with Inkscape
+# Use Inkscape to convert SVG to PNG because CairoSVG distorts the text
+###############################################################################
+def inkscape_add_svg_to_pdf(sample_id,graphic_type,input_w,input_h,pdf_x,pdf_y):
+    input_path = f'{sample_id}-{graphic_type}.svg'
+    input_png = f'{sample_id}-{graphic_type}.png'    
+    os.system(f'inkscape --export-type=png {input_path}')
+    add_png_to_pdf(input_png, pdf_x, pdf_y, input_w, input_h)
+###############################################################################
+
+###############################################################################
+# Function to Generate the PDF Workspace's first page and populate it
+###############################################################################
+def generate_report():
+    global pdf
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Add Template Graphics
+    HL_logo_path = template_dir + "HLchemprofbanner.png"
+    HL_logo_w, HL_logo_h = 100, 20
+    HL_logo_x, HL_logo_y = 10, 10
+    add_png_to_pdf(HL_logo_path, HL_logo_x, HL_logo_y, HL_logo_w, HL_logo_h)
+    
+    # Check For Report Type and add appropriate graphics
+    if report_type == 'Default':
+        compile_default_report()
+    elif report_type == 'Church':
+        compile_church_report()
+    else:
+        print(f'ERROR IN GENERATING REPORT: {report_type}')
+    
+    # Save the Generated PDF of the sample
+    pdf.output(f"{sample_dir}/{sample_id} - {sample_name}.pdf", "F")
+    print()
+###############################################################################
+
+###############################################################################
+# Function to Compile Graphics and Tables for Chemical Profile & Dose Report
+###############################################################################
+def compile_default_report():
+    default_report_list = [['sample_table', 10, 30, 186, 50],
+                           ['description_table_top', 10, 79.5, 186, 12],
+                           ['description_table_bot', 10, 91.5, 186, 61],
+                           [f'{images_dir}{sample_id}-W.png', 11, 92, 56, 56],
+                           [f'{images_dir}{sample_id}-H.png', 104, 92, 56, 56],
+                           ['donut_plot', 10, 149, 93, 105],
+                           ['legend_table', 108, 149, 88, 105], # IS PIXELATED
+                           ['dose_table', 10, 255, 186, 32]]
+    
+    default_report_df = pd.DataFrame(default_report_list,
+                                     columns = ['graphic_type',
+                                                'pdf_x','pdf_y',
+                                                'input_w','input_h'])
+    
+    for index, row in default_report_df.iterrows():
+        if row['graphic_type'] == 'description_table_bot':
+            inkscape_add_svg_to_pdf(sample_id,row['graphic_type'],
+                                    row['input_w'], row['input_h'],
+                                    row['pdf_x'], row['pdf_y'])
+        elif '-W' in row['graphic_type'] or '-H' in row['graphic_type']:
+            add_png_to_pdf(row['graphic_type'],
+                           row['pdf_x'], row['pdf_y'],
+                           row['input_w'], row['input_h'])
+        else:
+            cairo_add_svg_to_pdf(sample_id,row['graphic_type'],
+                                 row['input_w'], row['input_h'],
+                                 row['pdf_x'], row['pdf_y'])     
+###############################################################################
+
+###############################################################################
+# Function to Compile Graphics and Tables for Church of Ambrosia Report
+###############################################################################
+def compile_church_report():
+    """
+    COMING SOON
+    """
+    print('COMING SOON - NO CHURCH REPORT GENERATED')
+###############################################################################
+
+###############################################################################
+#
+# MAIN: Iterate over Sample Directories & Set Tempalte/Square Image Directories
+#
+###############################################################################
+global sample_id
+global sample_name
+global sample_dir
+global report_type
+workspace_dir = 'H:/My Drive/HL Data Files/AUTOMATION WORKSPACE/'
+template_dir = 'H:/My Drive/HL Data Files/AUTOMATION WORKSPACE/Template/'
+images_dir = 'H:/My Drive/HL Data Files/Sample Images/SQUARE/'
+subfolders = [ f.path for f in os.scandir(workspace_dir) if f.is_dir() ]
+for sample_dir in subfolders:
+    if sample_dir == 'H:/My Drive/HL Data Files/AUTOMATION WORKSPACE/Template':
+        pass
+    else:
+        os.chdir(sample_dir) 
+        sample_info = sample_dir.split(workspace_dir)[1]
+        report_type = sample_info.split(' - ')[0]
+        sample_id = sample_info.split(' - ')[1]
+        sample_name = sample_info.split(' - ')[2]
+        generate_report()
+###############################################################################
+```

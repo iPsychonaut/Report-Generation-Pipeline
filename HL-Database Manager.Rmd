@@ -1,0 +1,971 @@
+---
+title: "Hyphae Labs Database Processor & Analyzer"
+output: html_notebook
+---
+
+This workbook is intended to generate, update, and analyze data from Hyphae Labs
+research and compile them into CSV database files and generate PDF reports.
+```{r}
+################################################################################
+# Necessary Library Imports
+################################################################################
+library(stringi)
+library(googlesheets4)
+library(data.table)
+library(stringr)
+library(filesstrings)
+library(ggplot2)
+library(dplyr)
+library(plyr)
+library(svglite)
+library(ggrepel)
+library(fmsb)
+library(gridGraphics)
+library(grid)
+library(cowplot)
+library(magick)
+################################################################################
+
+################################################################################
+# Function to determine of variable is zero, returns empty string if TRUE
+################################################################################
+zero_check = function(inputData) {
+  if (inputData == ''){
+  inputData = ''}
+  return(inputData)}
+################################################################################
+
+################################################################################
+# Function to determine if sample is a Replicate (HLO1A, HLO1B, HLO1C, etc)
+################################################################################
+replicate_check = function(sampleID){
+  check = stri_sub(sampleID,-1)
+  if (is.numeric(check)){
+    sampleID = sampleID}
+  else{
+    sampleID = substr(sampleID,1,nchar(sampleID)-1)}
+  return(sampleName)}
+################################################################################
+# Function to round all numeric variables to sigFigs in a given Data Frame
+################################################################################
+round_df <- function(df, sigFigs) {
+    numeric_columns <- sapply(df, mode) == 'numeric'
+    df[numeric_columns] <-  round(df[numeric_columns], sigFigs)
+    df}
+################################################################################
+
+################################################################################
+# Function to Generate and Save and Archive of an input Data Frame
+################################################################################
+generate_archive = function(dataFrame) {
+  # Create necessary paths and file names based on current date/time
+  rawPath = 'H:\\My Drive\\'
+  archivePath = 'H:\\My Drive\\HL Data Files\\ARCHIVE\\'
+  currentTime = Sys.time()
+  currentTime = str_replace_all(currentTime,':',' ')
+  archiveName = paste(currentTime,'.gsheet',sep='')
+  
+  # Generate new spreadsheet in the base Drive Folder
+  (newSpreadSheet = gs4_create(currentTime, sheets = dataFrame))
+  
+  # Wait until file has been generated
+  drivePath = paste(rawPath,archiveName,sep='')
+  while (!file.exists(drivePath)) {
+    Sys.sleep(1)}
+
+  # Move File to Archive Folder
+  file.move(drivePath, archivePath)
+  print(paste('ARCHIVE GENERATED:',archiveName))}
+################################################################################
+
+################################################################################
+# Function to Generate and Save Updated Data Base of an input Data Frame
+################################################################################
+update_database = function(dataFrame) {
+  #Check its existence
+  fn = 'H:\\My Drive\\HL Data Files\\Hyphae Labs Merge CURRENT.gsheet'
+  if (file.exists(fn)) {
+    #Delete file if it exists
+    file.remove(fn)}
+  
+  # Create necessary paths and file names based on current date/time
+  rawPath = 'H:\\My Drive\\'
+  savePath = 'H:\\My Drive\\HL Data Files\\'
+  saveName = 'Hyphae Labs Merge CURRENT'
+  
+  # Generate new spreadsheet in the base Drive Folder
+  (newSpreadSheet = gs4_create(saveName, sheets = dataFrame))
+  
+  # Wait until file has been generated
+  drivePath = paste(rawPath,saveName,'.gsheet',sep='')
+  while (!file.exists(drivePath)) {
+    Sys.sleep(1)}
+  
+  # Move File to Archive Folder
+  file.move(drivePath, savePath)
+  print(paste('DATABASE UPDATED:', saveName))}
+################################################################################
+
+################################################################################
+# Function to generate blank Data Frame
+################################################################################
+## UPDATE WITH NEW COMPOUNDS AS METHOD REQUIRES ##
+generate_blank_data_frame = function(){
+  sampNameList = c('Name')
+  sampNRBppmList = c(0)
+  sampBAOppmList = c(0)
+  sampARGppmList = c(0)
+  sampPCBppmList = c(0)
+  sampCDYppmList = c(0)
+  sampADNppmList = c(0)
+  sampBUFppmList = c(0)
+  sampFHTppmList = c(0)
+  sampNPCppmList = c(0)
+  sampPCNppmList = c(0)
+  sampFHTMTppmList = c(0)
+  sampTRPppmList = c(0)
+  sampFMDMTppmList = c(0)
+  sampNNDMTppmList = c(0)
+  df = do.call(rbind, Map(data.frame, Sample_ID = sampNameList,
+                                     Norbaeocystin_ppm = sampNRBppmList,
+                                     Baeocystin_ppm = sampBAOppmList,
+                                     Aeruginascin_ppm = sampARGppmList,
+                                     Psilocybin_ppm = sampPCBppmList,
+                                     Cordycepin_ppm = sampCDYppmList,
+                                     Adenosine_ppm = sampADNppmList,
+                                     Bufotenin_ppm = sampppmList,
+                                     Four_Hydroxy_Tryptamine_ppm = sampFHTppmList,
+                                     Norpsilocin_ppm = sampNPCppmList,
+                                     Psilocin_ppm = sampPCNppmList,
+                                     Four_Hydroxy_TMT_ppm = sampFHTMTppmList,
+                                     Tryptamine_ppm = sampTRPppmList,
+                                     Five_Methoxy_DMT_ppm = sampFMDMTppmList,
+                                     NN_DMT_ppm = sampNNDMTppmList))
+  df = df[-1,]
+  return(df)}
+################################################################################
+
+## UPDATE WITH NEW COMPOUNDS AS METHOD REQUIRES ##
+################################################################################
+# Function to generate a list of all compounds being investigated
+################################################################################
+generate_compound_list = function() {
+  compoundList = c('Norbaeocystin','Baeocystin','Aeruginascin','Psilocybin','Cordycepin','Adenosine','Tryptamine','Four Hydroxy Tryptamine','Norpsilocin','Psilocin','Four Hydroxy TMT', 'Bufotenin', 'Five Methoxy DMT', 'NN DMT')
+  return(compoundList)}
+################################################################################
+
+
+## UPDATE WITH NEW COMPOUNDS AS METHOD REQUIRES ##
+################################################################################
+# Function to check compound output of Chemstation report and add blanks columns
+################################################################################
+chemstation_data_check = function(sampleData,colList){
+  compoundList = generate_compound_list()
+  for (compound in compoundList){
+    if(!(grepl(compound,colList))) {
+      sampleData = rbind(sampleData,c(compound,0))}}
+  return(sampleData)}
+################################################################################
+
+################################################################################
+# Function to generate Sample Data Frame from Chemstation Reports
+################################################################################
+generate_chemstation_sample_df = function(tempReport0,tempReport1) {
+  dataColList = c()
+  
+  # Gather Sample Name and Compound Column Names from Report0/2
+  for (row in 1:nrow(tempReport0)){
+    if (grepl('Sample Name',tempReport0[row,'V1'])){
+      sampleID = tempReport0[row,'V2']}
+    if (grepl('Column ',tempReport0[row,'V1'])){
+      colName = tempReport0[row,'V2']
+      dataColList = append(dataColList,colName)}}
+  
+  # Gather the list of Compounds tested into a lsit
+  updatedColList =c()
+  for (item in dataColList){
+    updatedItem = stri_replace_all_regex(item, '  ', '')
+    updatedColList = c(updatedColList,updatedItem)}
+  updatedColList=updatedColList[!grepl("Signal",unlist(updatedColList))]
+  colnames(tempReport1) = updatedColList
+  
+  # Update REPORT1 with the appropriate column names
+  compoundList = c('Sample Name')
+  amountList = c(sampleID)
+  for (row in 1:nrow(tempReport1)) {
+    compoundList = append(compoundList,tempReport1[row,'Compound Name'])
+    amountList = append(amountList,tempReport1[row,'Amount'])}
+  sampleData= data.frame(list(compoundList,amountList))
+  colnames(sampleData) = c('x1','x2')
+  
+  # Convert all of Compounds in column 1 into a list
+  colList = list(sampleData$x1)
+  
+  # Prep Sample Data column names for Transposition
+  sampleData = chemstation_data_check(sampleData,colList)
+  sampleData$x1 =  replace(sampleData$x1,sampleData$x1=='Four Hydroxy TMT','Four_Hydroxy_TMT')
+  sampleData$x1 =  replace(sampleData$x1,sampleData$x1=='Four Hydroxy Tryptamine','Four_Hydroxy_Tryptamine')
+  sampleData$x1 =  replace(sampleData$x1,sampleData$x1=='Five Methoxy DMT','Five_Methoxy_DMT')
+  sampleData$x1 =  replace(sampleData$x1,sampleData$x1=='NN DMT','NN_DMT')
+  sampleData$x1 = paste(sampleData$x1,'_ppm',sep='')
+  sampleData$x1 =  replace(sampleData$x1,sampleData$x1=='Sample Name_ppm','Sample_ID')
+  
+  # Transpose Data Frame
+  sampleDataTransposed = transpose(sampleData)
+  
+  # Redefine row and column names and apply to final Data Frame
+  rownames(sampleDataTransposed) = colnames(sampleData)
+  colnames(sampleDataTransposed) = rownames(sampleData)
+  names(sampleDataTransposed) = sampleDataTransposed[1,]
+  sampleDataTransposed = sampleDataTransposed[-1,]
+  rownames(sampleDataTransposed) = NULL
+  return(sampleDataTransposed)}
+################################################################################
+
+################################################################################
+# Function to Append Batch Data Frame with Open CDS CSV
+################################################################################
+process_openCDS = function(inputProcessingPath) {
+  CSV = read.csv(inputProcessingPath, header = FALSE)
+  
+  ## UPDATE WITH NEW COMPOUNDS AS METHOD REQUIRES ##
+  # Generate Empty lists for sample names and every compound expected
+  sampNameList = c('Name')
+  sampNRBppmList = c(0)
+  sampBAOppmList = c(0)
+  sampARGppmList = c(0)
+  sampPCBppmList = c(0)
+  sampCDYppmList = c(0)
+  sampADNppmList = c(0)
+  sampppmList = c(0)
+  sampFHTppmList = c(0)
+  sampNPCppmList = c(0)
+  sampPCNppmList = c(0)
+  sampFHTMTppmList = c(0)
+  sampTRPppmList = c(0)
+  sampFMDMTppmList = c(0)
+  sampNNDMTppmList = c(0)
+  
+  # For every sample in the CSV append compound data to appropriate list
+  for (row in 1:nrow(CSV)) {
+    if(CSV[row, 'V1'] == 'Sample name:'){
+      sampNameList = append(sampNameList,CSV[row, 'V2'])}
+    if(CSV[row, 'V1'] == 'Norbaeocystin'){
+      NRBppm = CSV[row, 'V3']
+      NRBppm = zero_check(NRBppm)
+      sampNRBppmList = append(sampNRBppmList,NRBppm)}
+    if(CSV[row, 'V1'] == 'Baeocystin'){
+      BAOppm = CSV[row, 'V3']
+      BAOppm = zero_check(BAOppm)
+      sampBAOppmList = append(sampBAOppmList,BAOppm)}
+    if(CSV[row, 'V1'] == 'Aeruginascin'){
+      ARGppm = CSV[row, 'V3']
+      ARGppm = zero_check(ARGppm)
+      sampARGppmList = append(sampARGppmList,ARGppm)}
+    if(CSV[row, 'V1'] == 'Psilocybin'){
+      PCBppm = CSV[row, 'V3']
+      PCBppm = zero_check(PCBppm)
+      sampPCBppmList = append(sampPCBppmList,PCBppm)}
+    if(CSV[row, 'V1'] == 'Cordycepin'){
+      CDYppm = CSV[row, 'V3']
+      CDYppm = zero_check(CDYppm)
+      sampCDYppmList = append(sampCDYppmList,CDYppm)}
+    if(CSV[row, 'V1'] == 'Adenosine'){
+      ADNppm = CSV[row, 'V3']
+      ADNppm = zero_check(ADNppm)
+      sampADNppmList = append(sampADNppmList,ADNppm)}
+    if(CSV[row, 'V1'] == '4-Hydroxytryptamine'){
+      FHTppm = CSV[row, 'V3']
+      FHTppm = zero_check(FHTppm)
+      sampFHTppmList = append(sampFHTppmList,FHTppm)}
+    if(CSV[row, 'V1'] == 'Norpsilocin'){
+      NPCppm = CSV[row, 'V3']
+      NPCppm = zero_check(NPCppm)
+      sampNPCppmList = append(sampNPCppmList,NPCppm)}
+    if(CSV[row, 'V1'] == 'Psilocin'){
+      PCNppm = CSV[row, 'V3']
+      PCNppm = zero_check(PCNppm)
+      sampPCNppmList = append(sampPCNppmList,PCNppm)}
+    if(CSV[row, 'V1'] == '4-Hydroxy-DMT'){
+      FHTMTppm = CSV[row, 'V3']
+      FHTMTppm = zero_check(FHTMTppm)
+      sampFHTMTppmList = append(sampFHTMTppmList,FHTMTppm)}
+    if(CSV[row, 'V1'] == 'Tryptamine'){
+      TRPppm = CSV[row, 'V3']
+      TRPppm = zero_check(TRPppm)
+      sampTRPppmList = append(sampTRPppmList,TRPppm)}
+    if(CSV[row, 'V1'] == 'Bufotenin'){
+      ppm = CSV[row, 'V3']
+      ppm = zero_check(BUFppm)
+      sampBUFppmList = append(sampBUFppmList,BUFppm)}
+    if(CSV[row, 'V1'] == '5-Methoxy-DMT'){
+      FMDMTppm = CSV[row, 'V3']
+      FMDMTppm = zero_check(FMDMTppm)
+      sampFMDMTppmList = append(sampFMDMTppmList,FMDMTppm)}
+    if(CSV[row, 'V1'] == 'NN-DMT'){
+      NNDMTppm = CSV[row, 'V3']
+      NNDMTppm = zero_check(NNDMTppm)
+      sampNNDMTppmList = append(sampNNDMTppmList,NNDMTppm)}
+  }
+    
+    # Compile all lists into a Data Frame 
+  dfTemp = do.call(rbind, Map(data.frame,
+                              Sample_ID = sampNameList,
+                              Norbaeocystin_ppm = sampNRBppmList, 
+                              Baeocystin_ppm = sampBAOppmList,
+                              Aeruginascin_ppm = sampARGppmList,
+                              Psilocybin_ppm = sampPCBppmList,
+                              Cordycepin_ppm = sampCDYppmList,
+                              Adenosine_ppm = sampADNppmList,
+                              Four_Hydroxy_Tryptamine_ppm = sampFHTppmList,
+                              Four_Hydroxy_TMT_ppm = sampFHTMTppmList,
+                              Norpsilocin_ppm = sampNPCppmList,
+                              Psilocin_ppm = sampPCNppmList,
+                              Tryptamine_ppm = sampTRPppmList,
+                              Bufotenin_ppm = sampBUFppmList,
+                              Five_Methoxy_DMT_ppm = sampFMDMTppmList,
+                              NN_DMT_ppm = sampNNDMTppmList,
+                              ))
+    
+  # Convert data columns into numeric, reset sample names, and return compiled Data Frame
+  df <- sapply(dfTemp, as.numeric)
+  df[is.na(df)] <- 0
+  df[,'Sample_ID'] = dfTemp$Sample_ID
+  df = df[-1,]
+  # Add Team Prefix to Sample if not Present
+  teamPrefix = 'TTC'
+  for (row in 1:nrow(df)) {
+    if (!grepl("\\D", df[row,'Sample_ID'])) {
+      df[row,'Sample_ID'] = paste(teamPrefix,df[row,'Sample_ID'],sep='')}}
+  return(df)}
+################################################################################
+
+################################################################################
+# Function to generate Chemstatation Data Frame from input Batch Folder
+################################################################################
+process_chemstation = function(inputProcessingFile) {
+  dataFolders = list.dirs(inputProcessingFile,recursive = FALSE) # Generate a list of all data folders in the run
+  
+  # Generate a blank Chemstation Data Frame
+  chemstationDF = generate_blank_data_frame()
+  compiledDFColNames = colnames(chemstationDF)
+  
+  # Iterate over Sub-Folders, each being a single Sample Data, append to tempDF
+  for (dataFolder in dataFolders) {
+    report0 = paste(dataFolder,'/Report00.csv',sep='')
+    report1 = paste(dataFolder,'/REPORT01.csv',sep='')
+    report2 = paste(dataFolder,'/Report02.csv',sep='')
+    report3 = paste(dataFolder,'/REPORT03.csv',sep='')
+    if (file.exists(report0)){ # Check to see if Report 0 Exists representing sample data
+      tempReport0 = read.csv(report0, skipNul = TRUE, header = FALSE, check.names = FALSE, fileEncoding='UTF-16LE')
+      tempReport1 = read.csv(report1, skipNul = TRUE, check.names = FALSE, header = FALSE, fileEncoding='UTF-16LE')
+      # check to see if the Report 0 contains a calibration table, if so then use Reports 2 & 3 for data
+      if (tempReport0[1,'V2'] == 'Calibration Table') { 
+        tempReport0 = read.csv(report2, skipNul = TRUE, header = FALSE, check.names = FALSE, fileEncoding='UTF-16LE')
+        tempReport1 = read.csv(report3, skipNul = TRUE, check.names = FALSE, header = FALSE, fileEncoding='UTF-16LE')}
+      
+      # Generate temporary Sample Data Frame
+      tempSampDF = generate_chemstation_sample_df(tempReport0,tempReport1)
+      tempSampDF = tempSampDF[,compiledDFColNames]
+      
+      # Update the Chemstation Data Frame with the Sample Data 
+      chemstationDF = rbind(chemstationDF,tempSampDF)}}
+  return(chemstationDF)}
+################################################################################
+
+################################################################################
+# Function to Update the Google Sheets Database
+################################################################################
+update_google_database = function() {
+  # Load in the Processing Data Batch Google Sheet 
+  preProcDF = googledrive::drive_get('Hyphae Labs Merge CURRENT') %>% 
+  read_sheet()
+  generate_archive(preProcDF)
+  procDF = preProcDF
+  
+  # Extract from Processing Data Batch a list of all unique Batches needed to compile
+  batchList = list(procDF$Batch_ID)
+  batchList = unique(unlist(batchList, use.names = FALSE))
+  #print(batchList)
+  
+  # Set the patch of the Google Drive Folder containing Batch Data
+  path = 'H:\\My Drive\\Instrument Data'
+  subDirs = list.dirs(path, full.names = TRUE, recursive = TRUE)
+  #print(subDirs)
+  
+  # Generate blank Batch Data Frame
+  batchDF = generate_blank_data_frame()
+  
+  # Compile Batch Data Frame and temporary list for Processed Batches
+  processedList = c()
+  for (batch in batchList) {
+  
+    # Extract Open CDS data from CSV
+    if (grepl('Data Export',batch) & !(batch %in% processedList)) {
+      currentPath = paste(path,'\\Open CDS\\',batch,'.csv',sep='')
+      if (file.exists(currentPath)){
+        currentOpenCDSDF = process_openCDS(currentPath)
+        batchDF = rbind(batchDF,currentOpenCDSDF)
+        processedList = append(processedList, batch)
+        print(paste('OPEN CDS PROCESSED:',currentPath))
+      } else {
+        print(paste('FILE DOES NOT EXIST IN PATH:',currentPath))}}
+    
+    # Extract Chemstation data from CSVs in folders
+    if (grepl('_',batch) & !(batch %in% processedList)) {
+      currentPath = paste(path,'\\Chemstation\\',batch,sep='')
+      if (file.exists(currentPath)){  
+        currentChemstationDF = process_chemstation(currentPath)
+        batchDF = rbind(batchDF,currentChemstationDF)
+        processedList = append(processedList, batch)
+        print(paste('CHEMSTATION PROCESSED:',currentPath))
+    } else {
+      print(paste('FILE DOES NOT EXIST IN PATH:',currentPath))}}
+    print(currentPath)}
+  
+  # Replace all '-' with 0 in Batch Data Frame
+  batchDF[batchDF == '-'] = '0'
+  
+  # For each row in the Process Data extract the Sample ID and Batch it's data is located in
+  for (row in 1:nrow(procDF)) {
+    sampleID = procDF[row,'Sample_ID']
+    batchID = procDF[row,'Batch_ID']
+    procWt = procDF[row,'Processed_Weight_g']
+    solventVol = procDF[row,'Sonication_Solvent_Volume']
+    extractDilution = procDF[row,'Extract_Dilution_Factor']
+    
+    # If the sample does not have a Batch associated with it, raise error that to the user
+    if (is.na(batchID)){
+      print(paste('BATCH ID MISSING FOR',sampleID))
+    } else {
+      
+      # Update data for Sample from Compiled Batch Data Frame
+      trypDFColList = c('Norbaeocystin','Baeocystin','Aeruginascin','Psilocybin','Tryptamine','Norpsilocin','Psilocin','Four_Hydroxy_TMT', 'Four_Hydroxy_Tryptamine','Bufotenin','Five_Methoxy_DMT','NN_DMT')
+      nucleoDFColList = c('Cordycepin','Adenosine')
+      batchRow = batchDF[match(sampleID,batchDF$Sample_ID),]
+      totalTryps = 0
+      totalNucleos = 0
+      for (compound in trypDFColList) {
+        
+        # Generate Column Names
+        batchCol = paste(compound,'_ppm',sep='') 
+        ugmLCol = paste(compound,'_ug/mL',sep='')
+        ugmLData = as.numeric(batchRow[,batchCol])
+        mggLCol = paste(compound,'_mg/g',sep='')
+        
+        # Update Processing Data Frame with ug/mL data and calculate mg/g
+        procDF[match(sampleID,procDF$Sample_ID),ugmLCol] = ugmLData
+        #mggData = ((solventVol/procWt)/1000)*ugmLData
+        mggData = (ugmLData*solventVol*extractDilution)/(procWt*1000)
+        procDF[match(sampleID,procDF$Sample_ID),mggLCol] = mggData
+        totalTryps = totalTryps + mggData
+      }
+      for (compound in nucleoDFColList) {
+        
+        # Generate Column Names
+        batchCol = paste(compound,'_ppm',sep='') 
+        ugmLCol = paste(compound,'_ug/mL',sep='')
+        ugmLData = as.numeric(batchRow[,batchCol])
+        mggLCol = paste(compound,'_mg/g',sep='')
+        
+        # Update Processing Data Frame with ug/mL data and calculate mg/g
+        procDF[match(sampleID,procDF$Sample_ID),ugmLCol] = ugmLData
+        #mggData = ((solventVol/procWt)/1000)*ugmLData
+        mggData = (ugmLData*solventVol*extractDilution)/(procWt*1000)
+        procDF[match(sampleID,procDF$Sample_ID),mggLCol] = mggData
+        totalNucleos = totalNucleos + mggData}
+      print(paste('UPDATE SAMPLE DATA:',sampleID))}
+    
+    # Update Processing Data Frame with calculated Totals and Dosing
+    procDF[match(sampleID,procDF$Sample_ID),'Total_Tryptamines_mg/g'] = totalTryps
+    procDF[match(sampleID,procDF$Sample_ID),'200mg_Total_Tryptamines_Dose'] = totalTryps*0.2
+    procDF[match(sampleID,procDF$Sample_ID),'3.5g_Total_Tryptamines_Dose'] = totalTryps*3.5
+    procDF[match(sampleID,procDF$Sample_ID),'5.0g_Total_Tryptamines_Dose'] = totalTryps*5.0
+    procDF[match(sampleID,procDF$Sample_ID),'Total_Nucleosides_mg/g'] = totalNucleos
+    procDF[match(sampleID,procDF$Sample_ID),'200mg_Total_Nucleosides_Dose'] = totalNucleos*0.2
+    procDF[match(sampleID,procDF$Sample_ID),'3.5g_Total_Nucleosides_Dose'] = totalNucleos*3.5
+    procDF[match(sampleID,procDF$Sample_ID),'5.0g_Total_Nucleosides_Dose'] = totalNucleos*5.0}
+  
+  update_database(procDF)
+  return(procDF)}
+################################################################################
+```
+
+```{r}
+# Bar Chart Generator
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(plyr)
+library(svglite)
+library(ggrepel)
+library(fmsb)
+library(gridGraphics)
+library(grid)
+library(cowplot)
+library(magick)
+library(colourvision)
+
+labeled_radarchart = function(df, axistype=0, seg=4, pty=16, pcol=1:8, plty=1:6, plwd=1,
+                        pdensity=NULL, pangle=45, pfcol=NA, cglty=3, cglwd=1,
+                        cglcol="navy", axislabcol="blue", title="", maxmin=TRUE,
+                        na.itp=TRUE, centerzero=FALSE, vlabels=NULL, vlcex=NULL,
+                        caxislabels=NULL, calcex=NULL,
+                        paxislabels=NULL, palcex=NULL, ...) {
+  if (!is.data.frame(df)) { cat("The data must be given as dataframe.\n"); return() }
+  if ((n <- length(df))<3) { cat("The number of variables must be 3 or more.\n"); return() }
+  if (maxmin==FALSE) { # when the dataframe does not include max and min as the top 2 rows.
+    dfmax <- apply(df, 2, max)
+    dfmin <- apply(df, 2, min)
+    df <- rbind(dfmax, dfmin, df)
+  }
+  plot(c(-1.2, 1.2), c(-1.2, 1.2), type="n", frame.plot=FALSE, axes=FALSE, 
+       xlab="", ylab="", main=title, asp=1, ...) # define x-y coordinates without any plot
+  theta <- seq(90, 450, length=n+1)*pi/180
+  theta <- theta[1:n]
+  xx <- cos(theta)
+  yy <- sin(theta)
+  CGap <- ifelse(centerzero, 0, 1)
+  for (i in 0:seg) { # complementary guide lines, dotted navy line by default
+    polygon(xx*(i+CGap)/(seg+CGap), yy*(i+CGap)/(seg+CGap), lty=cglty, lwd=cglwd, border=cglcol)
+    if (axistype==1|axistype==3) CAXISLABELS <- paste(i/seg*100,"(%)")
+    if (axistype==4|axistype==5) CAXISLABELS <- sprintf("%3.2f",i/seg)
+    if (!is.null(caxislabels)&(i<length(caxislabels))) CAXISLABELS <- caxislabels[i+1]
+    if (axistype==1|axistype==3|axistype==4|axistype==5) {
+      if (is.null(calcex)) text(-0.05, (i+CGap)/(seg+CGap), CAXISLABELS, col=axislabcol) else
+        text(-0.05, (i+CGap)/(seg+CGap), CAXISLABELS, col=axislabcol, cex=calcex)
+    }
+  }
+  if (centerzero) {
+    arrows(0, 0, xx*1, yy*1, lwd=cglwd, lty=cglty, length=0, col=cglcol)
+  }
+  else {
+    arrows(xx/(seg+CGap), yy/(seg+CGap), xx*1, yy*1, lwd=cglwd, lty=cglty, length=0, col=cglcol)
+  }
+  PAXISLABELS <- df[1,1:n]
+  if (!is.null(paxislabels)) PAXISLABELS <- paxislabels
+  if (axistype==2|axistype==3|axistype==5) {
+    if (is.null(palcex)) text(xx[1:n], yy[1:n], PAXISLABELS, col=axislabcol) else
+      text(xx[1:n], yy[1:n], PAXISLABELS, col=axislabcol, cex=palcex)
+  }
+  VLABELS <- colnames(df)
+  if (!is.null(vlabels)) VLABELS <- vlabels
+  if (is.null(vlcex)) text(xx*1.2, yy*1.2, VLABELS) else
+    text(xx*1.2, yy*1.2, VLABELS, cex=vlcex)
+  series <- length(df[[1]])
+  SX <- series-2
+  if (length(pty) < SX) { ptys <- rep(pty, SX) } else { ptys <- pty }
+  if (length(pcol) < SX) { pcols <- rep(pcol, SX) } else { pcols <- pcol }
+  if (length(plty) < SX) { pltys <- rep(plty, SX) } else { pltys <- plty }
+  if (length(plwd) < SX) { plwds <- rep(plwd, SX) } else { plwds <- plwd }
+  if (length(pdensity) < SX) { pdensities <- rep(pdensity, SX) } else { pdensities <- pdensity }
+  if (length(pangle) < SX) { pangles <- rep(pangle, SX)} else { pangles <- pangle }
+  if (length(pfcol) < SX) { pfcols <- rep(pfcol, SX) } else { pfcols <- pfcol }
+  for (i in 3:series) {
+    xxs <- xx
+    yys <- yy
+    scale <- CGap/(seg+CGap)+(df[i,]-df[2,])/(df[1,]-df[2,])*seg/(seg+CGap)
+    if (sum(!is.na(df[i,]))<3) { cat(sprintf("[DATA NOT ENOUGH] at %d\n%g\n",i,df[i,])) # for too many NA's (1.2.2012)
+    } else {
+      for (j in 1:n) {
+        if (is.na(df[i, j])) { # how to treat NA
+          if (na.itp) { # treat NA using interpolation
+            left <- ifelse(j>1, j-1, n)
+            while (is.na(df[i, left])) {
+              left <- ifelse(left>1, left-1, n)
+            }
+            right <- ifelse(j<n, j+1, 1)
+            while (is.na(df[i, right])) {
+              right <- ifelse(right<n, right+1, 1)
+            }
+            xxleft <- xx[left]*CGap/(seg+CGap)+xx[left]*(df[i,left]-df[2,left])/(df[1,left]-df[2,left])*seg/(seg+CGap)
+            yyleft <- yy[left]*CGap/(seg+CGap)+yy[left]*(df[i,left]-df[2,left])/(df[1,left]-df[2,left])*seg/(seg+CGap)
+            xxright <- xx[right]*CGap/(seg+CGap)+xx[right]*(df[i,right]-df[2,right])/(df[1,right]-df[2,right])*seg/(seg+CGap)
+            yyright <- yy[right]*CGap/(seg+CGap)+yy[right]*(df[i,right]-df[2,right])/(df[1,right]-df[2,right])*seg/(seg+CGap)
+            if (xxleft > xxright) {
+              xxtmp <- xxleft; yytmp <- yyleft;
+              xxleft <- xxright; yyleft <- yyright;
+              xxright <- xxtmp; yyright <- yytmp;
+            }
+            xxs[j] <- xx[j]*(yyleft*xxright-yyright*xxleft)/(yy[j]*(xxright-xxleft)-xx[j]*(yyright-yyleft))
+            yys[j] <- (yy[j]/xx[j])*xxs[j]
+          } else { # treat NA as zero (origin)
+            xxs[j] <- 0
+            yys[j] <- 0
+          }
+        }
+        else {
+          xxs[j] <- xx[j]*CGap/(seg+CGap)+xx[j]*(df[i, j]-df[2, j])/(df[1, j]-df[2, j])*seg/(seg+CGap)
+          yys[j] <- yy[j]*CGap/(seg+CGap)+yy[j]*(df[i, j]-df[2, j])/(df[1, j]-df[2, j])*seg/(seg+CGap)
+        }
+      }
+      if (is.null(pdensities)) {
+        polygon(xxs, yys, lty=pltys[i-2], lwd=plwds[i-2], border=pcols[i-2], col=pfcols[i-2])
+      } else {
+        polygon(xxs, yys, lty=pltys[i-2], lwd=plwds[i-2], border=pcols[i-2], 
+                density=pdensities[i-2], angle=pangles[i-2], col=pfcols[i-2])
+      }
+      points(xx*scale, yy*scale, pch=ptys[i-2], col=pcols[i-2])
+      
+      ## Line added to add textvalues to points
+      text(xx*scale*1.15, yy*scale*1.15, df[3,], cex = 1.5)
+    }
+  }
+}
+
+# Function to check Data for Replicates, Generate Mean, then Process Position and Labels
+bar_data_prep = function(sampleData,procDF) {
+  sampleID = sampleData$Sample_ID
+  lastChar = str_sub(sampleID,-1,-1)
+  
+  if (grepl('[A-Z]',lastChar)) {
+    baseID = substr(sampleID,1,nchar(sampleID)-1)
+    
+    tempData = procDF[substr(procDF$Sample_ID,1,nchar(procDF$Sample_ID)-1) == baseID,]
+    
+    meanData = tempData[rep(1,1),]
+    
+    compoundList = generate_compound_list()
+    
+    meanData$Sample_ID = baseID
+    meanData$Processed_Weight_g = mean(tempData$Processed_Weight_g)
+    meanData$'Norbaeocystin_ug/mL' = mean(tempData$'Norbaeocystin_ug/mL')
+    meanData$'Baeocystin_ug/mL' = mean(tempData$'Baeocystin_ug/mL')
+    meanData$'Psilocybin_ug/mL' = mean(tempData$'Psilocybin_ug/mL')
+    meanData$'Aeruginascin_ug/mL' = mean(tempData$'Aeruginascin_ug/mL')
+    meanData$'Tryptamine_ug/mL' = mean(tempData$'Tryptamine_ug/mL')
+    meanData$'Norpsilocin_ug/mL' = mean(tempData$'Norpsilocin_ug/mL')
+    meanData$'Psilocin_ug/mL' = mean(tempData$'Psilocin_ug/mL')
+    meanData$'Four_Hydroxy_TMT_ug/mL' = mean(tempData$'Four_Hydroxy_TMT_ug/mL')
+    
+    meanData$'Norbaeocystin_mg/g' = mean(tempData$'Norbaeocystin_mg/g')
+    meanData$'Baeocystin_mg/g' = mean(tempData$'Baeocystin_mg/g')
+    meanData$'Psilocybin_mg/g' = mean(tempData$'Psilocybin_mg/g')
+    meanData$'Aeruginascin_mg/g' = mean(tempData$'Aeruginascin_mg/g')
+    meanData$'Tryptamine_mg/g' = mean(tempData$'Tryptamine_mg/g')
+    meanData$'Norpsilocin_mg/g' = mean(tempData$'Norpsilocin_mg/g')
+    meanData$'Psilocin_mg/g' = mean(tempData$'Psilocin_mg/g')
+    meanData$'Four_Hydroxy_TMT_mg/g' = mean(tempData$'Four_Hydroxy_TMT_mg/g')
+    
+    sampleData = meanData
+    
+    # Get Data for Bar Chart phosph(NRB,BAO,PCB,ARG), hydrox(4-HT,NPC,PCN,4-HTMT)
+    phosphData = c(sampleData$'Norbaeocystin_mg/g',sampleData$'Baeocystin_mg/g',sampleData$'Psilocybin_mg/g',sampleData$'Aeruginascin_mg/g')
+    
+    hydroxData = c(sampleData$'Tryptamine_mg/g',sampleData$'Norpsilocin_mg/g',sampleData$'Psilocin_mg/g',sampleData$'Four_Hydroxy_TMT_mg/g')
+    
+    phosphSD = c(sd(tempData$'Norbaeocystin_mg/g'),sd(tempData$'Baeocystin_mg/g'),sd(tempData$'Psilocybin_mg/g'),sd(tempData$'Aeruginascin_mg/g'))
+    
+    hydroxSD = c(sd(tempData$'Tryptamine_mg/g'),sd(tempData$'Norpsilocin_mg/g'),sd(tempData$'Psilocin_mg/g'),sd(tempData$'Four_Hydroxy_TMT_mg/g'))
+    
+  } else {
+    print('SAMPLE HAS NO REPLICATES')
+    # Get Data for Bar Chart phosph(NRB,BAO,PCB,ARG), hydrox(4-HT,NPC,PCN,4-HTMT)
+    phosphData = c(sampleData$'Norbaeocystin_mg/g',sampleData$'Baeocystin_mg/g',sampleData$'Psilocybin_mg/g',sampleData$'Aeruginascin_mg/g')
+    
+    hydroxData = c(sampleData$'Tryptamine_mg/g',sampleData$'Norpsilocin_mg/g',sampleData$'Psilocin_mg/g',sampleData$'Four_Hydroxy_TMT_mg/g')
+  }
+  
+  # Generate Data Frame
+  trypPairList = c('4-HT/\nNorbaeocystin\n(Mood*)','Norpsilocin/\nBaeocystin\n(Stomach*)','Psilocin/\nPsilocybin\n(Speed/Duration)','4-HTMT\nAeruginascin\n(Immobility*)')
+  trypPairs = c(rep(trypPairList, each = 2))
+  trypClasses = c(rep(c('Phosphate: Precursor','Hydroxy: Active'), times = 2))
+  barData = data.frame(trypPairs, trypClasses)
+  # Format barData for Graphical Representation
+  barData['trypbarData'] = c(rbind(phosphData, hydroxData))
+  if (exists('phosphSD') & exists('hydroxSD')) {
+    barData['trypSD'] = c(rbind(phosphSD, hydroxSD))
+    barData[nrow(barData) + 1,] = c('Hydroxy/\nPhosphate\nTryptamine Totals', 'Phosphate: Precursor', sum(phosphData), sum(phosphSD))
+    barData[nrow(barData) + 1,] = c('Hydroxy/\nPhosphate\nTryptamine Totals', 'Hydroxy: Active', sum(hydroxData), sum(hydroxSD))
+    barData[4] = lapply(barData[4], as.numeric)
+  } else {
+    barData[nrow(barData) + 1,] = c('Hydroxy/\nPhosphate\nTryptamine Totals', 'Phosphate: Precursor', sum(phosphData))
+    barData[nrow(barData) + 1,] = c('Hydroxy/\nPhosphate\nTryptamine Totals', 'Hydroxy: Active', sum(hydroxData))
+  }
+  barData[3] = lapply(barData[3], as.numeric)
+  trypPairList = append(trypPairList,'Hydroxy/\nPhosphate\nTryptamine Totals')
+  barData = round_df(barData, 2)
+  dataLabels = c()
+  textLabelPos = c()
+  dataCount = 0
+  for (dataCheck in barData$trypbarData) {
+    dataCount = dataCount+1
+    if (dataCheck == 0){
+      dataLabels = append(dataLabels, '<LOD')
+    } else {
+      if (dataCheck <= 0.01) {
+        dataLabels = append(dataLabels, '<LOQ')
+      } else {
+        if ('trypSD' %in% colnames(barData)){
+          pasteName = paste(dataCheck,barData[dataCount,'trypSD'],sep='±')
+          dataLabels = append(dataLabels, pasteName)
+        } else { 
+          dataLabels = append(dataLabels, dataCheck)
+        }
+      }
+    }
+    if (barData[dataCount,'trypClasses']=='Phosphate: Precursor') {
+      newPos = dataCheck - (dataCheck*0.5)
+    } else {
+      if (barData[dataCount,'trypClasses']=='Hydroxy: Active'){
+        newPos = (dataCheck+barData[dataCount-1,'trypbarData'] - (dataCheck*0.5))
+        if (newPos - textLabelPos[length(textLabelPos)] <= 1.5) {
+          newPos = newPos+1.25
+        }
+      }
+    }
+    textLabelPos = append(textLabelPos,newPos)
+  }
+  barData = cbind(barData,dataLabels,textLabelPos)
+  return(barData)
+}
+
+create_stacked_barchart = function(sampleData) {
+  # Sample Information
+  sampleID = sampleData$Sample_ID
+  sampleName = sampleData$Sample_Name
+  
+  lastChar = str_sub(sampleID,-1,-1)
+    
+  if (grepl('[A-Z]',lastChar)) {
+    baseID = substr(sampleID,1,nchar(sampleID)-1)
+  } else {
+    baseID = sampleID
+  }
+  
+  # Get Data for Bar Chart phosph(NRB,BAO,PCB,ARG), hydrox(4-HT,NPC,PCN,4-HTMT)
+  barData = bar_data_prep(sampleData,procDF)
+  
+  trypPairList = c('4-HT/\nNorbaeocystin\n(Mood*)','Norpsilocin/\nBaeocystin\n(Stomach*)','Psilocin/\nPsilocybin\n(Speed/Duration)','4-HTMT\nAeruginascin\n(Immobility*)','Hydroxy/\nPhosphate\nTryptamine Totals')
+  
+  # Plot Stacked Bar Chart and add Labels/Text
+  tempBarPlot = ggplot(barData, aes(x = trypPairs, y = trypbarData)) +
+       ggtitle(paste('HPLC Tryptamine Analysis of\n',baseID,' - ',sampleName,sep='')) +
+       xlab('') +
+       ylab('Compound Concentration (mg/g)') +
+       ylim(0,20)+
+       geom_bar(aes(fill = trypClasses), stat='identity') +
+       geom_text(aes(label = dataLabels, y = textLabelPos), size = 5, colour= 'black',fontface='bold') +
+       geom_vline(xintercept=4.5,size=0.75, linetype = 'longdash',color='#333333') +
+       scale_fill_manual('Tryptamine Class',values=c('#FF9900','#FF3333')) +
+       scale_x_discrete(limits = trypPairList)
+  
+  # Change the color, the size and the face of the main title, x and y axis labels
+  finalBarPlot = tempBarPlot + theme(
+  plot.title = element_text(color='black', size=24, face='bold', hjust=0.5),
+  axis.title.x = element_text(color='black', size=14, face='bold'),
+  axis.text.x = element_text(color='black', size=11, face='bold'),
+  axis.title.y = element_text(color='black', size=14, face='bold'),
+  axis.text.y = element_text(color='black', size=10, face='bold'),
+  legend.title = element_text(color='black', size=12, face='bold'),
+  legend.title.align = 0.5,
+  legend.position = c(0.16,0.86),
+  legend.text = element_text(size=12)
+  )
+  
+  # Save the Final Bar Plot as a SVG (or PNG) Image File
+  saveName = paste(sampleID,'-',sampleName,'-Bar',sep='')
+  ggsave(plot = finalBarPlot, width = 7.5, height = 5.5, dpi = 100, filename = paste(saveName,'.svg',sep=''))
+}
+
+# Radar Chart Generator
+# Define a function to generate radar charts and save them
+create_beautiful_radarchart <- function(data, color = 'white',
+                                        vlabels = colnames(data), vlcex = 1.5,
+                                        caxislabels = c(0.0, 1.0, 2.0, 3.0, 4.0, 5.0),
+                                        sampleID = NULL, sampleName = NULL) {
+  radarTitle = paste('Hyphae Spectrum™ Analysis\nof ',sampleID,' - ',sampleName,sep='')
+  op <- par(mar = c(1, 2, 2, 1),bg =NA)
+  freshPlot = labeled_radarchart(data,
+             seg = 5,
+             pcol = 'black', pfcol = scales::alpha(color, 0.45), plwd = 2, plty = 1,
+             cglcol = 'black', cglty = 1, cglwd = 1,
+             axislabcol = 'black', 
+             vlabels = c('Psilocybin',
+                    'Psilocin',
+                    'Baeocystin            ',
+                    'Norpsilocin',
+                    'Norbaeocystin',
+                    '4HT',
+                    '             Aeruginscin',
+                    '4HTMT'),
+             vlcex = vlcex,
+             caxislabels = caxislabels,
+             title = radarTitle,
+             axistype = 4,
+             centerzero = F,
+             maxmin = T,
+             cex.main = 1.85)
+  par(op)
+  freshPlot <- recordPlot()
+  ## grab the scene as a grid object
+  grid.echo()
+  plot <- grid.grab()
+  plot + theme(plot.title = element_text(face='bold',size=20,hjust = 0.5))
+  plot <- editGrob(plot, gp=gpar(fontsize=8))
+  finalPlot = ggdraw() +
+    draw_image('C:\\Users\\theda\\OneDrive\\Documents\\Hyphae Labs R\\rspecbg.png') +
+    draw_plot(plot)
+  saveNameS = paste(sampleID,'-',sampleName,'-Radar.svg',sep='')
+  saveNameP = paste(sampleID,'-',sampleName,'-Radar.png',sep='')
+  ggsave(filename = saveNameS,
+         plot = finalPlot,
+         scale=1,
+         width=8.5,
+         height=5,
+         dpi=100,
+         units='in')
+  ggsave(filename = saveNameP,
+         plot = finalPlot,
+         scale=1,
+         width=8.5,
+         height=5,
+         dpi=100,
+         units='in')
+}
+
+# Function to Generate Hyphae Spectrum Cateogry Use Plot
+create_use_chart = function(rowData){
+  sampleID = rowData$Sample_ID
+  sampleName = rowData$Sample_Name
+  catTitle = paste("Hyphae Spectrum™ Use Cetegory\nfor ",sampleID,' - ',sampleName,sep='')
+  sampleData = rowData$'Total_Tryptamines_mg/g'
+  sampleCat= ifelse(sampleData <= 1, 'Exploratory',
+                    ifelse(sampleData <= 5.5, 'Microdose',
+                           ifelse(sampleData <= 13, 'Recreational',
+                                  ifelse(sampleData < 17, 'Therapeutic',
+                                         ifelse(sampleData < 19.5, 'Spiritual',
+                                                ifelse(sampleData <= 20, 'Deeply Introspective', 
+                                                       paste('Sample Data Outside Range:',sampleData)))))))
+  # Change Marker Color Depending on Background and Position
+  markerColor= ifelse(sampleData <= 1, 'black',
+                      ifelse(sampleData <= 5.5, 'black',
+                             ifelse(sampleData <= 13, 'black',
+                                    ifelse(sampleData < 17, 'darkgray',
+                                           ifelse(sampleData < 19.5, 'darkgray',
+                                                  ifelse(sampleData <= 20, 'darkgray', 
+                                                         paste('Sample Data Outside Range:',sampleData)))))))
+  input = data.frame(name=c(catTitle),
+                     x=c(sampleData),
+                     y=c(0.5))
+  
+  gradient <- t(rainbow(20,start=0.2,end=0.80)) # higher value for smoother gradient
+  g <- rasterGrob(gradient, width = unit(1, "npc"), height = unit(1, "npc"), interpolate = TRUE) 
+  
+  catPlot = ggplot(input, aes(x = sampleData,y = 0.5)) + 
+    annotation_custom(g, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+    geom_point(shape= 23, fill = markerColor, color = markerColor, size=27) +
+    labs(title = catTitle, x = sampleCat) +
+    xlim(0,20) +
+    coord_fixed(30)
+  
+  catPlot = catPlot + theme(plot.title = element_text(face = 'bold', size=25,hjust=0.5),
+                            axis.text.y = element_blank(),
+                            axis.title.y = element_blank(),
+                            axis.text.x = element_blank(),
+                            axis.title.x = element_text(face = 'bold', size=50,hjust=0.5))
+  return(catPlot)
+}
+```
+
+```{r}
+################################################################################
+# Run Main Function to Update 'Hyphae Labs Merge CURRENT.gsheet'
+################################################################################
+procDF = update_google_database()
+library('writexl')
+write_xlsx(procDF,"H:\\My Drive\\HL Data Files\\Hyphae Labs MAIL MERGE WORKING.xlsx")
+################################################################################
+```
+
+```{r}
+procDF = googledrive::drive_get('Hyphae Labs Merge CURRENT') %>% 
+read_sheet()
+##### DEBUG WORKSPACE #####
+#67-71
+sampleList = c(439:466)
+for (sample in sampleList) {
+  create_stacked_barchart(procDF[sample,])
+}
+
+```
+
+```{r}
+#67-71
+
+# Generate Specific Graphs Manual or Automated
+rowData = procDF[67,]
+
+# Generate Bar Chart
+create_stacked_barchart(rowData)
+
+# Generate Category Use Chart
+useChart = create_use_chart(rowData)
+
+# Sample Information
+sampleID = rowData$Sample_ID
+sampleName = rowData$Sample_Name
+
+# Raw Single Input Data & Run
+radarData = data.frame(row.names = c('max','min',sampleName),
+                  'Psilocybin' = c(5,0,0.4),
+                  'Psilocin' = c(5,0,1.7),
+                  'Baeocystin' = c(5,0,0.2),
+                  'Norpsilocin' = c(5,0,1.7),
+                  'Norbaeocystin' = c(5,0,0.0),
+                  '5HT' = c(5,0,0.0),
+                  'Aeruginscin' = c(5,0,0.0),
+                  '5HTMT' =c(5,0,0.0)
+                  )
+# Generate Radar Chart
+create_beautiful_radarchart(radarData, sampleID=sampleID, sampleName=sampleName)
+
+
+
+
+```
+
+```{r}
+# QR CODE GRAPH
+# Create the input vectors.
+library(ggplot2)
+library(plyr)
+library(tidyverse)
+library(svglite)
+trypPairs = c("PCB","PCN","Total Tryptamines\n(Contains Unlisted\nCompounds)")
+trypClasses = c("Phosphate: Precursor","Hydroxy: Active","Combined")
+trypData = c(9.58,0.71,11.69)
+trypSD = c(0.38,0.01,0.41)
+data = data.frame(fct_inorder(trypPairs), trypClasses, trypData, trypSD)
+# calculate midpoints of bars (simplified using comment by @DWin)
+data <- ddply(data, .(trypPairs), 
+   transform, pos = cumsum(trypData) - (0.5 * trypData)
+)
+# make trypPairs an ordered factor
+data$trypPairs <- factor(data$trypPairs)
+# plot
+p = ggplot(data, aes(x=fct_inorder(trypPairs), y=trypData, fill=trypClasses)) +
+    geom_bar(stat="identity", colour='black') +
+    geom_errorbar(aes(ymin=trypData-trypSD, ymax=trypData+trypSD), width=.5,position=position_dodge(.9),color='black',size=1.5) +
+    ggtitle('Expected Tryptamine Analysis\nfor Yeti') +
+    xlab('') +
+    ylab('Concentration (mg/g)') +
+    ylim(0,20)+
+    geom_text(aes(label = paste(trypData,trypSD, sep="±"), y = pos), size = 8, colour= 'black',fontface='bold')+
+    scale_fill_manual('Tryptamine Class',values=c('dark gray','gray', 'light grey')) 
+# Change the color, the size and the face of
+# the main title, x and y axis labels
+p = p + theme(
+plot.title = element_text(color="black", size=24, face="bold", hjust=0.5),
+axis.title.x = element_text(color="black", size=14, face="bold"),
+axis.text.x = element_text(color="black", size=18, face="bold"),
+axis.title.y = element_text(color="black", size=18, face="bold"),
+axis.text.y = element_text(color="black", size=14, face="bold"),
+legend.title = element_text(color="black", size=12, face="bold"),
+legend.title.align = 0.5,
+legend.text = element_text(size=12),
+legend.position = c(0.2,0.85)
+)
+p
+ggsave(plot = p, width = 7.5, height = 7.5, dpi = 100, filename = "yeti_barchart.svg")
+```
