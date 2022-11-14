@@ -150,25 +150,7 @@ stats_df_generator = function(sample_id_range,procDF) {
     working_stats_df = rbind(working_stats_df, sample_working_stats_df)}
   return(working_stats_df)}
 ################################################################################
-```
 
-```{r setup, include=FALSE}
-################################################################################
-#
-# RUN MAIN LOADER AND REPLICATE PARSER FOR SAMPLE LIST
-#
-################################################################################
-
-procDF=load_google_database()
-
-sample_id_range = c('CUP161','CUP162','CUP163')
-
-working_stats_df = stats_df_generator(sample_id_range,procDF)
-
-################################################################################
-```
-
-```{r setup, include=FALSE}
 ################################################################################
 # Function to save SVG of Ploty Graphic using JavaScript & Firefox
 ################################################################################
@@ -182,12 +164,12 @@ save_plotly_svg <- function(plot, file_name) {
 ################################################################################
 # Function to Generate All Graphics from Dataframe Row
 ################################################################################
-gen_graphics_from_row <- function(row) {
+#gen_graphics_from_row <- function(row) {
   report_type = row$Report_Type
   sample_name = row$Sample_Name
   sample_id = row$Sample_ID
   sample_client = row$Client_Name 
-  sample_species = row$Species_of_Origin 
+  sample_species = row$Species
   sample_cultivar = row$Cultivar 
   sample_gen_date = row$Generation_Date 
   sample_cult_desc = row$Client_Notes 
@@ -390,15 +372,17 @@ gen_graphics_from_row <- function(row) {
     type = 'table',
     columnwidth = c(451,1000),
     header = list(
-      values = c('ITEM ID & NAME:',paste(sample_id,sample_name,sep=' ')),
+      values = c('ITEM ID & NAME:', paste(sample_id,sample_name,sep=' ')),
       align = c('right','left'),
       fill = list(color = 'black'),
       line = list(width = 1, color = 'black'),
       font = list(family = "Arial", size = c(35,40), color = 'white'),
       height = 50),
     cells = list(
-      values = cbind(c('CULTIVATOR/PRODUCER:',sample_client),c('SPECIES:',sample_species),
-                     c('CULTIVAR:', sample_cultivar),c('GENERATION DATE:', sample_gen_date)),
+      values = cbind(c('CULTIVATOR/PRODUCER:',sample_client),
+                     c('SPECIES:',sample_species),
+                     c('CULTIVAR:', sample_cultivar),
+                     c('GENERATION DATE:', sample_gen_date)),
       align = c('right','left'),
       line = list(width = 1, color = 'black'),
       fill = list(color = c('lightgrey','white')),
@@ -482,18 +466,138 @@ gen_graphics_from_row <- function(row) {
   
   for (i in 1:length(files_to_copy)) {
     file.remove(files_to_copy[i])}
-}
+#}
 ```
 
 ```{r setup, include=FALSE}
+################################################################################
+#
+# RUN MAIN LOADER AND REPLICATE PARSER FOR SAMPLE LIST
+#
+################################################################################
+
+if (exists('procDF') && is.data.frame(get('procDF'))){
+  print('DATABASE ALREADY LOADED')
+} else {
+  procDF=load_google_database()}
+
+sample_id_range = c('CUP161','CUP162','CUP163')
+
+working_stats_df = stats_df_generator(sample_id_range,procDF)
+
+################################################################################
+
 ################################################################################
 #
 # RUN MAIN GRAPHICS GENERATOR FOR WORKING STATS DATAFRAME
 #
 ################################################################################
 for (i in 1:nrow(working_stats_df)) {
-  row = working_stats_df[1,]
+  row = working_stats_df[i,]
   row[is.na(row)] <- 0
   gen_graphics_from_row(row)
 }
+```
+
+```{r setup, include=FALSE}
+  # Generate Sample Table
+  sample_table_name_id_path = paste(sample_id, 'sample_table_name_id.svg', sep = '-')
+  sample_table_name_id <- plot_ly(
+    height = 75,
+    width = 1325,
+    type = 'table',
+    columnwidth = c(451,874),
+    header = list(
+      values = c('ITEM ID & NAME:', paste(sample_id,sample_name,sep=' - ')),
+      align = c('right','left'),
+      fill = list(color = 'black'),
+      line = list(width = 1, color = 'black'),
+      font = list(family = "Arial", size = c(35,45), color = 'white'),
+      height = 75))
+  sample_table_name_id <- layout(sample_table_name_id,
+                         autosize = F,
+                         margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                         showlegend = FALSE)
+  sample_table_name_id
+  save_plotly_svg(sample_table_name_id, sample_table_name_id_path)
+
+  sample_table_client_path = paste(sample_id, 'sample_table_client.svg', sep = '-')
+  sample_table_client <- plot_ly(
+    height = 70,
+    width = 1325,
+    type = 'table',
+    columnwidth = c(451,874),
+    header = list(
+      values = c('CULTIVATOR/PRODUCER:',sample_client),
+      align = c('right','left'),
+      fill = list(color = c('lightgrey', 'white')),
+      line = list(width = 1, color = 'black'),
+      font = list(family = "Arial", size = c(30,45), color = 'black', type = 'bold'),
+      height = 70))
+  sample_table_client <- layout(sample_table_client,
+                         autosize = F,
+                         margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                         showlegend = FALSE)
+  sample_table_client 
+  save_plotly_svg(sample_table_client, sample_table_client_path)
+  
+  sample_table_species_path = paste(sample_id, 'sample_table_species.svg', sep = '-')
+  sample_table_species <- plot_ly(
+    height = 70,
+    width = 1325,
+    type = 'table',
+    columnwidth = c(451,874),
+    header = list(
+      values = c('SPECIES:',sample_species),
+      align = c('right','left'),
+      fill = list(color = c('lightgrey', 'white')),
+      line = list(width = 1, color = 'black'),
+      font = list(family = "Arial", size = c(30,45), color = 'black', type = 'bold'),
+      height = 70))
+  sample_table_species <- layout(sample_table_species,
+                         autosize = F,
+                         margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                         showlegend = FALSE)
+  sample_table_species 
+  save_plotly_svg(sample_table_species, sample_table_species_path)
+
+  sample_table_cultivar_path = paste(sample_id, 'sample_table_cultivar.svg', sep = '-')
+  sample_table_cultivar <- plot_ly(
+    height = 70,
+    width = 1325,
+    type = 'table',
+    columnwidth = c(451,874),
+    header = list(
+      values = c('CULTIVAR:',sample_cultivar),
+      align = c('right','left'),
+      fill = list(color = c('lightgrey', 'white')),
+      line = list(width = 1, color = 'black'),
+      font = list(family = "Arial", size = c(30,45), color = 'black', type = 'bold'),
+      height = 70))
+  sample_table_cultivar <- layout(sample_table_cultivar,
+                         autosize = F,
+                         margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                         showlegend = FALSE)
+  sample_table_cultivar 
+  save_plotly_svg(sample_table_cultivar, sample_table_cultivar_path)
+    
+  sample_table_gen_date_path = paste(sample_id, 'sample_table_gen_date.svg', sep = '-')
+  sample_table_gen_date <- plot_ly(
+    height = 70,
+    width = 1325,
+    type = 'table',
+    columnwidth = c(451,874),
+    header = list(
+      values = c('GENERATION DATE:',sample_gen_date),
+      align = c('right','left'),
+      fill = list(color = c('lightgrey', 'white')),
+      line = list(width = 1, color = 'black'),
+      font = list(family = "Arial", size = c(30,45), color = 'black', type = 'bold'),
+      height = 70))
+  sample_table_gen_date <- layout(sample_table_gen_date,
+                         autosize = F,
+                         margin = list(l = 0, r = 0, b = 0, t = 0, pad = 4),
+                         showlegend = FALSE)
+  sample_table_gen_date 
+  save_plotly_svg(sample_table_gen_date, sample_table_gen_date_path)
 ```
