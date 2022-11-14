@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov  2 19:57:08 2022
-
 NOTE: REQUIRES INSTALLTION OF THE FULL INKSCAPE PROGRAM ON TOP OF CAIROSVG
 AND ITS DEPENDANCIES! Please be sure you have them installed before running.
 You will need to have permission and then replace all instances of 'My Drive'
 with 'Shared drives' to complete Google Drive connectivity. Contact author for
 more information.
-
 @author: ian.michael.bollinger@gmail.com | ian@hyphaelabs.org
 """
 
@@ -66,18 +64,14 @@ def generate_report():
     HL_logo_w, HL_logo_h = 100, 20
     HL_logo_x, HL_logo_y = 10, 10
     add_png_to_pdf(HL_logo_path, HL_logo_x, HL_logo_y, HL_logo_w, HL_logo_h)
-
-    # Add Template Graphics
-    tryp_logo_path = template_dir + "tryptomicssupport.png"
-    tryp_logo_w, tryp_logo_h = 32, 10
-    tryp_logo_x, tryp_logo_y = 110, 18
-    add_png_to_pdf(tryp_logo_path, tryp_logo_x, tryp_logo_y, tryp_logo_w, tryp_logo_h)
     
     # Check For Report Type and add appropriate graphics
     if report_type == 'Default':
         compile_default_report()
     elif report_type == 'Church':
         compile_church_report()
+    elif report_type == 'Cup':
+        compile_cup_report()
     else:
         print(f'ERROR IN GENERATING REPORT: {report_type}')
     
@@ -90,9 +84,13 @@ def generate_report():
 # Function to Compile Graphics and Tables for Chemical Profile & Dose Report
 ###############################################################################
 def compile_default_report():
-    default_report_list = [['sample_table', 10, 30, 186, 50],
-                           ['description_table_top', 10, 79.5, 186, 12],
-                           ['description_table_bot', 10, 91.5, 186, 61],
+    default_report_list = [['sample_table_name_id', 10, 30, 186, 11],
+                           ['sample_table_client', 10, 41, 186, 10],
+                           ['sample_table_cultivar', 10, 51, 186, 10],
+                           ['sample_table_species', 10, 61, 186, 10],
+                           ['sample_table_gen_date', 10, 71, 186, 10],
+                           ['description_table_top', 10, 80, 186, 12],
+                           ['description_table_bot', 10, 91, 186, 61],
                            [f'{images_dir}{sample_id}-W.png', 11, 92, 56, 56],
                            [f'{images_dir}{sample_id}-H.png', 104, 92, 56, 56],
                            ['donut_plot', 10, 149, 93, 105],
@@ -127,6 +125,21 @@ def compile_church_report():
     COMING SOON
     """
     print('COMING SOON - NO CHURCH REPORT GENERATED')
+###############################################################################
+
+###############################################################################
+# Function to Compile Graphics and Tables for Church of Ambrosia Report
+###############################################################################
+def compile_cup_report():
+    """
+    COMING SOON
+    """
+    print('COMING SOON - NO CUP REPORT GENERATED')
+    # Add Template Graphics
+    tryp_logo_path = template_dir + "tryptomicssupport.png"
+    tryp_logo_w, tryp_logo_h = 32, 10
+    tryp_logo_x, tryp_logo_y = 110, 18
+    add_png_to_pdf(tryp_logo_path, tryp_logo_x, tryp_logo_y, tryp_logo_w, tryp_logo_h)
 ###############################################################################
 
 ###############################################################################
