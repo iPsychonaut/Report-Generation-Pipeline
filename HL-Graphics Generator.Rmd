@@ -13,75 +13,9 @@ library(reticulate)
 library(plotly)
 library(dplyr)
 library(googlesheets4)
+library(stringr)
+library(filesstrings)
 use_python('C:/Users/theda/AppData/Local/Programs/Python/Python310/python.exe')
-################################################################################
-
-################################################################################
-# Function to Generate and Save and Archive of an input Data Frame
-################################################################################
-generate_archive = function(dataFrame) {
-  # Create necessary paths and file names based on current date/time
-  rawPath = 'H:\\My Drive\\'
-  archivePath = 'H:\\My Drive\\HL Data Files\\ARCHIVE\\'
-  currentTime = Sys.time()
-  currentTime = str_replace_all(currentTime,':',' ')
-  archiveName = paste(currentTime,'.gsheet',sep='')
-  
-  # Generate new spreadsheet in the base Drive Folder
-  (newSpreadSheet = gs4_create(currentTime, sheets = dataFrame))
-  
-  # Wait until file has been generated
-  drivePath = paste(rawPath,archiveName,sep='')
-  while (!file.exists(drivePath)) {
-    Sys.sleep(1)}
-
-  # Move File to Archive Folder
-  file.move(drivePath, archivePath)
-  print(paste('ARCHIVE GENERATED:',archiveName))}
-################################################################################
-
-################################################################################
-# Function to check Data for Replicate, Generate Mean, and Return Compiled Row
-################################################################################
-replicate_data_prep = function(sample_id,procDF) {
-  lastChar = str_sub(sample_id,-1,-1)
-  if (grepl('[A-Z]',lastChar)) {
-    baseID = substr(sample_id,1,nchar(sample_id)-1)
-    tempData = procDF[substr(procDF$Sample_ID,1,nchar(procDF$Sample_ID)-1) == baseID,]
-    meanData = tempData[rep(1,1),]
-    compoundList = generate_compound_list()
-    meanData$Sample_ID = baseID
-    meanData$Processed_Weight_g = mean(tempData$Processed_Weight_g)
-    meanData$'Norbaeocystin_ug/mL' = mean(tempData$'Norbaeocystin_ug/mL')
-    meanData$'Baeocystin_ug/mL' = mean(tempData$'Baeocystin_ug/mL')
-    meanData$'Psilocybin_ug/mL' = mean(tempData$'Psilocybin_ug/mL')
-    meanData$'Aeruginascin_ug/mL' = mean(tempData$'Aeruginascin_ug/mL')
-    meanData$'Adenosine_ug/mL' = mean(tempData$'Adenosine_ug/mL')
-    meanData$'Five_Methoxy_DMT_ug/mL' = mean(tempData$'Five_Methoxy_DMT_ug/mL')
-    meanData$'Cordycepin_ug/mL' = mean(tempData$'Cordycepin_ug/mL')
-    meanData$'Psilocin_ug/mL' = mean(tempData$'Psilocin_ug/mL')
-    meanData$'Four_Hydroxy_TMT_ug/mL' = mean(tempData$'Four_Hydroxy_TMT_ug/mL')
-    meanData$'Tryptamine_ug/mL' = mean(tempData$'Tryptamine_ug/mL')
-    meanData$'Bufotenin_ug/mL' = mean(tempData$'Bufotenin_ug/mL')
-    meanData$'NN_DMT_ug/mL' = mean(tempData$'NN_DMT_ug/mL')
-    
-    meanData$'Norbaeocystin_mg/g' = mean(tempData$'Norbaeocystin_mg/g')
-    meanData$'Baeocystin_mg/g' = mean(tempData$'Baeocystin_mg/g')
-    meanData$'Psilocybin_mg/g' = mean(tempData$'Psilocybin_mg/g')
-    meanData$'Aeruginascin_mg/g' = mean(tempData$'Aeruginascin_mg/g')
-    meanData$'Adenosine_mg/g' = mean(tempData$'Adenosine_mg/g')
-    meanData$'Five_Methoxy_DMT_mg/g' = mean(tempData$'Five_Methoxy_DMT_mg/g')
-    meanData$'Cordycepin_mg/g' = mean(tempData$'Cordycepin_mg/g')
-    meanData$'Psilocin_mg/g' = mean(tempData$'Psilocin_mg/g')
-    meanData$'Four_Hydroxy_TMT_mg/g' = mean(tempData$'Four_Hydroxy_TMT_mg/g')
-    meanData$'Tryptamine_mg/g' = mean(tempData$'Tryptamine_mg/g')
-    meanData$'Bufotenin_mg/g' = mean(tempData$'Bufotenin_mg/g')
-    meanData$'NN_DMT_mg/g' = mean(tempData$'NN_DMT_mg/g')
-    sampleData = meanData
-  } else {
-    print('SAMPLE HAS NO REPLICATES')
-    }
-  return(sampleData)}
 ################################################################################
 
 ################################################################################
@@ -91,13 +25,79 @@ load_google_database = function() {
   # Load in the Processing Data Batch Google Sheet 
   preProcDF = googledrive::drive_get('Hyphae Labs Merge CURRENT') %>% 
   read_sheet()
-  generate_archive(preProcDF)
   procDF = preProcDF
   return(procDF)}
 ################################################################################
 
+################################################################################
+# Function to generate a Working Dataframe from Sample ID List
+################################################################################
+stats_df_generator = function(sample_id_range,procDF){
+  replicate_df = procDF[0,]
+  working_stats_df = data.frame('Sample_ID' = c(''),
+                       'Norbaeocystin_mg_g' = c(''), 'Norbaeocystin_SD' = c(''),
+                       'Baeocystin_mg_g' = c(''), 'Baeocystin_SD' = c(''),
+                       'Psilocybin_mg_g' = c(''), 'Psilocybin_SD' = c(''),
+                       'Aeruginascin_mg_g' = c(''), 'Aeruginascin_SD' = c(''),
+                       'Adenosine_mg_g' = c(''), 'Adenosine_SD' = c(''),
+                       'Five_Methoxy_DMT_mg_g' = c(''), 'Five_Methoxy_DMT_SD' = c(''),
+                       'Cordycepin_mg_g' = c(''), 'Cordycepin_SD' = c(''),
+                       'Psilocin_mg_g' = c(''), 'Psilocin_SD' = c(''),
+                       'Psilocin_mg_g' = c(''), 'Psilocin_SD' = c(''),
+                       'Four_HTMT_mg_g' = c(''), 'Four_HTMT_SD' = c(''),
+                       'Tryptamine_mg_g' = c(''), 'Tryptamine_SD' = c(''),
+                       'Bufotenin_mg_g' = c(''), 'Bufotenin_SD' = c(''),
+                       'NN_DMT_mg_g' = c(''), 'NN_DMT_SD' = c(''))
+  working_stats_df = working_stats_df[-1,]
+  for (sample_id in sample_id_range){
+    sample_id = 'CUP161'
+    replicate_list = c('A', 'B', 'C')
+    for (replicate in replicate_list) {
+      replicate_df = rbind(replicate_df, procDF[which(procDF$Sample_ID == paste(sample_id, replicate, sep = '')), ])}
+    sample_working_stats_df = working_stats_df[1,]
+    sample_working_stats_df$'Sample_ID' = sample_id
+    sample_working_stats_df$'Norbaeocystin_mg_g' = mean(replicate_df$'Norbaeocystin_mg_g')
+    sample_working_stats_df$'Baeocystin_mg_g' = mean(replicate_df$'Baeocystin_mg_g')
+    sample_working_stats_df$'Psilocybin_mg_g' = mean(replicate_df$'Psilocybin_mg_g')
+    sample_working_stats_df$'Aeruginascin_mg_g' = mean(replicate_df$'Aeruginascin_mg_g')
+    sample_working_stats_df$'Adenosine_mg_g' = mean(replicate_df$'Adenosine_mg_g')
+    sample_working_stats_df$'Five_Methoxy_DMT_mg_g' = mean(replicate_df$'Five_Methoxy_DMT_mg_g')
+    sample_working_stats_df$'Cordycepin_mg_g' = mean(replicate_df$'Cordycepin_mg_g')
+    sample_working_stats_df$'Psilocin_mg_g' = mean(replicate_df$'Psilocin_mg_g')
+    sample_working_stats_df$'Four_HTMT_mg_g' = mean(replicate_df$'Four_Hydroxy_TMT_mg_g')
+    sample_working_stats_df$'Tryptamine_mg_g' = mean(replicate_df$'Tryptamine_mg_g')
+    sample_working_stats_df$'Bufotenin_mg_g' = mean(replicate_df$'Bufotenin_mg_g')
+    sample_working_stats_df$'NN_DMT_mg_g' = mean(replicate_df$'NN_DMT_mg_g')
+    
+    sample_working_stats_df$'Norbaeocystin_SD' = sd(replicate_df$'Norbaeocystin_mg_g')
+    sample_working_stats_df$'Baeocystin_SD' = sd(replicate_df$'Baeocystin_mg_g')
+    sample_working_stats_df$'Psilocybin_SD' = sd(replicate_df$'Psilocybin_mg_g')
+    sample_working_stats_df$'Aeruginascin_SD' = sd(replicate_df$'Aeruginascin_mg_g')
+    sample_working_stats_df$'Adenosine_SD' = sd(replicate_df$'Adenosine_mg_g')
+    sample_working_stats_df$'Five_Methoxy_DMT_SD' = sd(replicate_df$'Five_Methoxy_DMT_mg_g')
+    sample_working_stats_df$'Cordycepin_SD' = sd(replicate_df$'Cordycepin_mg_g')
+    sample_working_stats_df$'Psilocin_SD' = sd(replicate_df$'Psilocin_mg_g')
+    sample_working_stats_df$'Four_HTMT_SD' = sd(replicate_df$'Four_Hydroxy_TMT_mg_g')
+    sample_working_stats_df$'Tryptamine_SD' = sd(replicate_df$'Tryptamine_mg_g')
+    sample_working_stats_df$'Bufotenin_SD' = sd(replicate_df$'Bufotenin_mg_g')
+    sample_working_stats_df$'NN_DMT_SD' = sd(replicate_df$'NN_DMT_mg_g')
+    working_stats_df = rbind(working_stats_df, sample_working_stats_df)}
+  return(working_stats_df)}
+################################################################################
+
+################################################################################
+#
+# RUN MAIN LOADER AND REPLICATE PARSER FOR SAMPLE LIST
+#
+################################################################################
+
 procDF=load_google_database()
 
+sample_id_range = c('CUP161','CUP162','CUP163')
+
+working_stats_df = stats_df_generator(sample_id_range,procDF)
+
+################################################################################
 ```
 
 ```{r setup, include=FALSE}
